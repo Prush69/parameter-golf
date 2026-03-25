@@ -78,7 +78,7 @@ class Hyperparameters:
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 6))  # unique layers
+    num_layers = int(os.environ.get("NUM_LAYERS", 7))  # unique layers
 
     # SmearGate + BigramHash.
     use_smeargate = bool(int(os.environ.get("USE_SMEARGATE", "1")))
@@ -1004,7 +1004,7 @@ class GPT(nn.Module):
             skips.append(x)
         for i in range(self.num_decoder_layers):
             if skips:
-                x = x + self.skip_weights[0, i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+                x = x + self.skip_weights[0, i].to(dtype=x.dtype)[None, None, :] * self.skip_norm(skips.pop())
             x = self.blocks[self.num_encoder_layers + i](x, x0)
 
         return self._compute_logits_and_loss(x, target_ids)
@@ -1016,7 +1016,7 @@ class GPT(nn.Module):
             skips.append(x)
         for i in range(self.num_decoder_layers):
             if skips:
-                x = x + self.skip_weights[0, i].to(dtype=x.dtype)[None, None, :] * skips.pop()
+                x = x + self.skip_weights[0, i].to(dtype=x.dtype)[None, None, :] * self.skip_norm(skips.pop())
             x = self.blocks[self.num_encoder_layers + i](x, x0)
         return x
 
@@ -1313,8 +1313,21 @@ def main() -> None:
 
         if args.grad_clip_norm > 0:
             torch.nn.utils.clip_grad_norm_(base_model.parameters(), args.grad_clip_norm)
+            
+        if step < 50:
+            start_event = torch.cuda.Event(enable_timing=True)
+            end_event = torch.cuda.Event(enable_timing=True)
+            start_event.record()
+
         for opt in optimizers:
             opt.step()
+
+        if step < 50:
+            end_event.record()
+            torch.cuda.synchronize()
+            step_time_ms = start_event.elapsed_time(end_event)
+            log0(f"Step {step} Time: {step_time_ms:.2f} ms")
+
         zero_grad_all()
 
         step += 1
@@ -1478,7 +1491,7 @@ def main() -> None:
                 ttt_byte_count += tbytes.to(torch.float64).sum()
 
             base_model.train()
-            for _epoch in range(args.ttt_epochs):
+            for _epoch in range(1): # STRICT ENFORCEMENT: Max 1 epoch per chunk
                 ttt_opt.zero_grad()
                 with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
                     loss = base_model(x, y)
