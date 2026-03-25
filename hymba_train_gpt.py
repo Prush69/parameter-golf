@@ -78,12 +78,12 @@ class Hyperparameters:
 
     # Model shape.
     vocab_size = int(os.environ.get("VOCAB_SIZE", 1024))
-    num_layers = int(os.environ.get("NUM_LAYERS", 7))  # unique layers
+    num_layers = int(os.environ.get("NUM_LAYERS", 6))  # unique layers
 
     # SmearGate + BigramHash.
     use_smeargate = bool(int(os.environ.get("USE_SMEARGATE", "1")))
     use_bigram_hash = bool(int(os.environ.get("USE_BIGRAM_HASH", "1")))
-    bigram_buckets = int(os.environ.get("BIGRAM_BUCKETS", 4096))
+    bigram_buckets = int(os.environ.get("BIGRAM_BUCKETS", 2048))
     bigram_hash_dim = int(os.environ.get("BIGRAM_HASH_DIM", 128))
 
     # OrthoInit + SWA.
